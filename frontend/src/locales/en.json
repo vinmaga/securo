@@ -315,7 +315,10 @@
     "opIs": "is",
     "typeExpense": "Expense (debit)",
     "typeIncome": "Income (credit)",
-    "valuePlaceholder": "Value..."
+    "valuePlaceholder": "Value...",
+    "sortByPriority": "Sort by priority",
+    "sortByName": "Sort by name",
+    "sortByCategory": "Sort by category"
   },
   "categories": {
     "title": "Categories",
