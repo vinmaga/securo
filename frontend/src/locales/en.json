@@ -13,7 +13,9 @@
     "settings": "Settings",
     "recurring": "Recurring",
     "assets": "Assets",
-    "reports": "Reports"
+    "reports": "Reports",
+    "groupAnalysis": "Analysis",
+    "groupSetup": "Setup"
   },
   "auth": {
     "login": "Login",
