@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { categories as categoriesApi, rules as rulesApi, accounts as accountsApi } from '@/lib/api'
@@ -171,6 +171,26 @@ export default function RulesPage() {
 
   const categories = categoriesList ?? []
 
+  const [sortBy, setSortBy] = useState<'priority' | 'name' | 'category'>('priority')
+
+  const sortedRules = useMemo(() => {
+    const list = [...(rulesList ?? [])]
+    if (sortBy === 'name') {
+      return list.sort((a, b) => a.name.localeCompare(b.name))
+    }
+    if (sortBy === 'category') {
+      const getCategoryName = (rule: Rule) => {
+        const action = rule.actions.find(a => a.op === 'set_category')
+        if (!action) return ''
+        const cat = categories.find(c => c.id === action.value)
+        return cat?.name ?? ''
+      }
+      return list.sort((a, b) => getCategoryName(a).localeCompare(getCategoryName(b)))
+    }
+    // priority (default)
+    return list.sort((a, b) => a.priority - b.priority)
+  }, [rulesList, categories, sortBy])
+
   return (
     <div>
       <PageHeader section={t('rules.section')} title={t('nav.rules')} />
@@ -180,6 +200,15 @@ export default function RulesPage() {
           title={t('rules.sectionTitle')}
           action={
             <div className="flex gap-2">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as 'priority' | 'name' | 'category')}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+              >
+                <option value="priority">{t('rules.sortByPriority')}</option>
+                <option value="name">{t('rules.sortByName')}</option>
+                <option value="category">{t('rules.sortByCategory')}</option>
+              </select>
               <Button
                 variant="outline"
                 size="sm"
@@ -207,7 +236,7 @@ export default function RulesPage() {
         />
         {rulesList && rulesList.length > 0 ? (
           <div className="divide-y divide-border">
-            {rulesList.map((rule) => (
+            {sortedRules.map((rule) => (
               <div
                 key={rule.id}
                 className="px-4 sm:px-5 py-3 hover:bg-muted transition-colors cursor-pointer"
