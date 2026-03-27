@@ -15,7 +15,8 @@
     "assets": "Assets",
     "reports": "Reports",
     "groupAnalysis": "Analysis",
-    "groupSetup": "Setup"
+    "groupSetup": "Setup",
+    "groupAccounts": "Accounts"
   },
   "auth": {
     "login": "Login",

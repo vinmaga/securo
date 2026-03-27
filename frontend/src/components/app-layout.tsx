@@ -50,7 +50,9 @@ type NavItem =
 const navItems: NavItem[] = [
   { type: 'link', key: 'dashboard',    path: '/',             icon: LayoutDashboard },
   { type: 'link', key: 'transactions', path: '/transactions', icon: ArrowLeftRight },
+  { type: 'separator', labelKey: 'nav.groupAccounts' },
   { type: 'link', key: 'accounts',     path: '/accounts',     icon: Building2 },
+  { type: 'link', key: 'import',       path: '/import',       icon: Upload },
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
   { type: 'link', key: 'reports',      path: '/reports',      icon: BarChart3 },
   { type: 'link', key: 'assets',       path: '/assets',       icon: Landmark },
@@ -59,7 +61,6 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'recurring',    path: '/recurring',    icon: Repeat },
   { type: 'link', key: 'categories',   path: '/categories',   icon: Tag },
   { type: 'link', key: 'rules',        path: '/rules',        icon: SlidersHorizontal },
-  { type: 'link', key: 'import',       path: '/import',       icon: Upload },
 ]
 
 function formatCurrency(value: number, currency = 'USD', locale = 'en-US') {

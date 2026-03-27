@@ -15,7 +15,8 @@
     "assets": "Patrimônio",
     "reports": "Relatórios",
     "groupAnalysis": "Análise",
-    "groupSetup": "Configuração"
+    "groupSetup": "Configuração",
+    "groupAccounts": "Contas"
   },
   "auth": {
     "login": "Entrar",
