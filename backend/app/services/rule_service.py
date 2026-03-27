@@ -124,11 +124,31 @@ RULE_PACKS = {
                 {"field": "description", "op": "regex", "value": "SALARIO|FOLHA|PGTO.*SALARIO"},
             ], "actions": [{"op": "set_category", "value": "salary"}], "priority": 10},
 
-            {"name": "Dízimo / Doação", "conditions_op": "or", "conditions": [
-                {"field": "description", "op": "contains", "value": "DIZIMO"},
-                {"field": "description", "op": "contains", "value": "DOACAO"},
-                {"field": "description", "op": "contains", "value": "CARIDADE"},
-            ], "actions": [{"op": "set_category", "value": "donations"}], "priority": 10},
+            {"name": "Pet Shop / Veterinário", "conditions_op": "or", "conditions": [
+                {"field": "description", "op": "contains", "value": "PET SHOP"},
+                {"field": "description", "op": "contains", "value": "PETSHOP"},
+                {"field": "description", "op": "contains", "value": "VETERINARIO"},
+                {"field": "description", "op": "contains", "value": "VETERIN"},
+                {"field": "description", "op": "contains", "value": "COBASI"},
+                {"field": "description", "op": "contains", "value": "PETZ"},
+            ], "actions": [{"op": "set_category", "value": "pets"}], "priority": 10},
+
+            {"name": "Passagem Aérea / Hotel", "conditions_op": "or", "conditions": [
+                {"field": "description", "op": "contains", "value": "LATAM"},
+                {"field": "description", "op": "contains", "value": "GOL LINHAS"},
+                {"field": "description", "op": "contains", "value": "AZUL LINHAS"},
+                {"field": "description", "op": "contains", "value": "DECOLAR"},
+                {"field": "description", "op": "contains", "value": "BOOKING"},
+                {"field": "description", "op": "contains", "value": "AIRBNB"},
+                {"field": "description", "op": "contains", "value": "HOTEL"},
+            ], "actions": [{"op": "set_category", "value": "travel"}], "priority": 10},
+
+            {"name": "Investimento / Aporte", "conditions_op": "or", "conditions": [
+                {"field": "description", "op": "contains", "value": "TESOURO DIRETO"},
+                {"field": "description", "op": "contains", "value": "APORTE"},
+                {"field": "description", "op": "regex", "value": "CDB|LCI|LCA|FUNDO.*INVEST"},
+                {"field": "description", "op": "contains", "value": "CORRETORA"},
+            ], "actions": [{"op": "set_category", "value": "investments"}], "priority": 10},
 
             {"name": "Pix Enviado", "conditions_op": "and", "conditions": [
                 {"field": "description", "op": "regex", "value": "PIX.*ENVIADO|PIX.*TRANSF"},
@@ -144,7 +164,7 @@ RULE_PACKS = {
                 {"field": "description", "op": "contains", "value": "BARBEARIA"},
                 {"field": "description", "op": "contains", "value": "SALAO"},
                 {"field": "description", "op": "contains", "value": "CABELEREIRO"},
-            ], "actions": [{"op": "set_category", "value": "personal_care"}], "priority": 10},
+            ], "actions": [{"op": "set_category", "value": "health"}], "priority": 10},
 
             {"name": "IPTU / IPVA / Imposto", "conditions_op": "or", "conditions": [
                 {"field": "description", "op": "contains", "value": "IPTU"},
@@ -251,7 +271,7 @@ RULE_PACKS = {
                 {"field": "description", "op": "contains", "value": "CHARITY"},
                 {"field": "description", "op": "contains", "value": "TITHE"},
                 {"field": "description", "op": "contains", "value": "RED CROSS"},
-            ], "actions": [{"op": "set_category", "value": "donations"}], "priority": 10},
+            ], "actions": [{"op": "set_category", "value": "other"}], "priority": 10},
 
             {"name": "Taxes / IRS", "conditions_op": "or", "conditions": [
                 {"field": "description", "op": "contains", "value": "IRS"},
@@ -336,7 +356,7 @@ RULE_PACKS = {
                 {"field": "description", "op": "contains", "value": "SPENDE"},
                 {"field": "description", "op": "contains", "value": "DONATION"},
                 {"field": "description", "op": "contains", "value": "DON "},
-            ], "actions": [{"op": "set_category", "value": "donations"}], "priority": 10},
+            ], "actions": [{"op": "set_category", "value": "other"}], "priority": 10},
 
             {"name": "Steuer / Impôt (Tax)", "conditions_op": "or", "conditions": [
                 {"field": "description", "op": "contains", "value": "STEUER"},
@@ -422,7 +442,7 @@ RULE_PACKS = {
                 {"field": "description", "op": "contains", "value": "CHARITY"},
                 {"field": "description", "op": "contains", "value": "DONATION"},
                 {"field": "description", "op": "contains", "value": "JUST GIVING"},
-            ], "actions": [{"op": "set_category", "value": "donations"}], "priority": 10},
+            ], "actions": [{"op": "set_category", "value": "other"}], "priority": 10},
 
             {"name": "Rent / Mortgage", "conditions_op": "or", "conditions": [
                 {"field": "description", "op": "contains", "value": "RENT"},
