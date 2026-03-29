@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, Check, Download, Search, X } from 'lucide-react'
+import { AlertTriangle, Check, Download, Paperclip, Search, X } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
@@ -101,7 +101,7 @@ export default function TransactionsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async (payload: { tx: Partial<Transaction>; recurringData?: { frequency: string; end_date?: string } }) => {
+    mutationFn: async (payload: { tx: Partial<Transaction>; recurringData?: { frequency: string; end_date?: string }; pendingFiles?: File[] }) => {
       const created = await transactions.create(payload.tx)
       if (payload.recurringData) {
         await recurring.create({
@@ -116,6 +116,11 @@ export default function TransactionsPage() {
           account_id: payload.tx.account_id || undefined,
           skip_first: true,
         } as Record<string, unknown>)
+      }
+      if (payload.pendingFiles?.length) {
+        await Promise.all(
+          payload.pendingFiles.map(file => transactions.attachments.upload(created.id, file))
+        )
       }
       return created
     },
@@ -375,6 +380,9 @@ export default function TransactionsPage() {
                               {t('transactions.recurringBadge')}
                             </span>
                           )}
+                          {(tx.attachment_count ?? 0) > 0 && (
+                            <Paperclip size={12} className="text-muted-foreground shrink-0" />
+                          )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{new Date(tx.date + 'T00:00:00').toLocaleDateString(locale)}</p>
                         {tx.notes && (
@@ -519,11 +527,11 @@ export default function TransactionsPage() {
         categories={categoriesList ?? []}
         accounts={accountsList ?? []}
         recurringMatch={editingTx ? recurringList?.find(r => r.description === editingTx.description && r.type === editingTx.type) : undefined}
-        onSave={(data, recurringData) => {
+        onSave={(data, recurringData, pendingFiles) => {
           if (editingTx) {
             updateMutation.mutate({ id: editingTx.id, ...data })
           } else {
-            createMutation.mutate({ tx: data, recurringData })
+            createMutation.mutate({ tx: data, recurringData, pendingFiles })
           }
         }}
         onDelete={editingTx ? () => deleteMutation.mutate(editingTx.id) : undefined}
