@@ -1,7 +1,7 @@
 """update default categories: rename, add pets/investments/travel, remove donations/personal_care
 
-Revision ID: 018
-Revises: 017
+Revision ID: 019
+Revises: 018
 Create Date: 2026-03-27
 """
 from typing import Sequence, Union
@@ -9,8 +9,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "018"
-down_revision: Union[str, None] = "017"
+revision: str = "019"
+down_revision: Union[str, None] = "018"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
