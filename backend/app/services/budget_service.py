@@ -258,6 +258,7 @@ async def get_budget_vs_actual(
             Transaction.date < month_end,
             Transaction.category_id.isnot(None),
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(Transaction.category_id)
     )
@@ -290,6 +291,7 @@ async def get_budget_vs_actual(
             Transaction.date < prev_month_end,
             Transaction.category_id.isnot(None),
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(Transaction.category_id)
     )

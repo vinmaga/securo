@@ -362,7 +362,7 @@ export default function AssetsPage() {
           </div>
         </div>
 
-        {isExpanded && <AssetDetail assetId={asset.id} currency={asset.currency} locale={locale} purchasePrice={asset.purchase_price} purchaseDate={asset.purchase_date} valuationMethod={asset.valuation_method} />}
+        {isExpanded && <AssetDetail assetId={asset.id} currency={asset.currency} locale={locale} purchasePrice={asset.purchase_price} purchaseDate={asset.purchase_date} />}
       </div>
     )
   }
@@ -783,10 +783,9 @@ function PortfolioChart({ data, currency, locale: loc, mask }: {
   )
 }
 
-function AssetDetail({ assetId, currency, locale: loc, purchasePrice, purchaseDate, valuationMethod }: {
+function AssetDetail({ assetId, currency, locale: loc, purchasePrice, purchaseDate }: {
   assetId: string; currency: string; locale: string
   purchasePrice: number | null; purchaseDate: string | null
-  valuationMethod: string
 }) {
   const { t } = useTranslation()
   const { mask } = usePrivacyMode()
@@ -933,8 +932,8 @@ function AssetDetail({ assetId, currency, locale: loc, purchasePrice, purchaseDa
         </div>
       )}
 
-      {/* Add Value Form — only for manual assets */}
-      {valuationMethod === 'manual' && <div className="flex items-end gap-2">
+      {/* Add Value Form */}
+      {<div className="flex items-end gap-2">
         <div className="flex-1">
           <Label className="text-[11px] text-muted-foreground">{t('assets.amount')}</Label>
           <Input
@@ -1003,7 +1002,7 @@ function AssetDetail({ assetId, currency, locale: loc, purchasePrice, purchaseDa
                     <span className="text-[11px] text-muted-foreground tabular-nums">
                       {new Date(v.date + 'T00:00:00').toLocaleDateString(loc)}
                     </span>
-                    {valuationMethod === 'manual' && v.source === 'manual' && (
+                    {v.source === 'manual' && (
                       <button
                         onClick={() => deleteValueMutation.mutate(v.id)}
                         className="p-1 rounded text-muted-foreground/40 hover:text-rose-600 transition-colors"

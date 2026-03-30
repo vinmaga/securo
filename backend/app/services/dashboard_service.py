@@ -113,6 +113,7 @@ async def get_summary(
             Transaction.date < month_end,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
     )
     monthly_row = monthly_result.one()
@@ -144,6 +145,7 @@ async def get_summary(
         Transaction.category_id.is_(None),
         Transaction.source != "opening_balance",
         Transaction.transfer_pair_id.is_(None),
+        Transaction.is_hidden == False,
     ]
     pending_categorization = await session.scalar(
         select(func.count())
@@ -194,6 +196,7 @@ async def get_summary(
             Transaction.date < month_end,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
             Transaction.amount_primary.isnot(None),
         )
     )
@@ -264,6 +267,7 @@ async def get_spending_by_category(
             Transaction.date >= month_start,
             Transaction.date < month_end,
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(Category.id, Category.name, Category.icon, Category.color)
         .order_by(func.sum(_primary_amount_expr()).desc())
@@ -352,6 +356,7 @@ async def get_monthly_trend(
             Account.is_closed == False,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(month_label)
         .order_by(month_label.desc())
@@ -586,6 +591,7 @@ async def _daily_deltas(
             Transaction.date < end,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by("day")
     )

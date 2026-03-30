@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import current_active_user
 from app.core.database import get_async_session
 from app.models.user import User
-from app.schemas.transaction import BulkCategorizeRequest, TransactionCreate, TransactionRead, TransactionUpdate
+from app.schemas.transaction import BulkCategorizeRequest, BulkHideByPatternRequest, TransactionCreate, TransactionRead, TransactionUpdate
 from app.services import transaction_service
 
 router = APIRouter(prefix="/api/transactions", tags=["transactions"])
@@ -44,6 +44,8 @@ async def list_transactions(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
     include_opening_balance: bool = Query(False),
+    include_hidden: bool = Query(False),
+    only_hidden: bool = Query(False),
     sort_by: str = Query("date"),
     sort_dir: str = Query("desc"),
     session: AsyncSession = Depends(get_async_session),
@@ -51,8 +53,8 @@ async def list_transactions(
 ):
     transactions, total = await transaction_service.get_transactions(
         session, user.id, account_id, category_id, from_date, to_date, page, limit,
-        include_opening_balance, search=q, uncategorized=uncategorized, txn_type=type,
-        sort_by=sort_by, sort_dir=sort_dir,
+        include_opening_balance, include_hidden=include_hidden, only_hidden=only_hidden,
+        search=q, uncategorized=uncategorized, txn_type=type, sort_by=sort_by, sort_dir=sort_dir,
     )
     primary_currency = user.primary_currency
     items = [_tag_fx_fallback(TransactionRead.model_validate(tx, from_attributes=True), primary_currency) for tx in transactions]
@@ -114,6 +116,19 @@ async def bulk_categorize(
 ):
     count = await transaction_service.bulk_update_category(
         session, user.id, data.transaction_ids, data.category_id
+    )
+    return {"updated": count}
+
+
+@router.patch("/bulk-hide-by-pattern")
+async def bulk_hide_by_pattern(
+    data: BulkHideByPatternRequest,
+    hidden: bool = Query(True),
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    count = await transaction_service.bulk_hide_by_pattern(
+        session, user.id, data.pattern, hidden=hidden
     )
     return {"updated": count}
 

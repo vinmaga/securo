@@ -375,6 +375,7 @@ async def get_income_expenses_report(
             Transaction.date <= today,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(label_expr)
         .order_by(label_expr)
@@ -498,6 +499,7 @@ async def get_income_expenses_report(
             Transaction.date <= today,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(Category.id, Category.name, Category.color, Transaction.type)
     )
@@ -538,6 +540,7 @@ async def get_income_expenses_report(
             Transaction.date <= today,
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
         )
         .group_by(label_expr, Category.id, Category.name, Category.color, Transaction.type)
     )

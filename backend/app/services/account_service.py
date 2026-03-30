@@ -294,6 +294,7 @@ async def get_account_summary(
             Transaction.type == "credit",
             Transaction.source != "opening_balance",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
             Transaction.date >= date_from,
             Transaction.date <= date_to,
         )
@@ -306,6 +307,7 @@ async def get_account_summary(
             Transaction.account_id == account_id,
             Transaction.type == "debit",
             Transaction.transfer_pair_id.is_(None),
+            Transaction.is_hidden == False,
             Transaction.date >= date_from,
             Transaction.date <= date_to,
         )

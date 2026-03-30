@@ -563,6 +563,7 @@ function RuleDialog({
                   >
                     <option value="set_category">{t('rules.setCategory')}</option>
                     <option value="append_notes">{t('rules.appendNotes')}</option>
+                    <option value="hide_transaction">{t('rules.hideTransaction')}</option>
                   </select>
                   {action.op === 'set_category' ? (
                     <select
@@ -576,6 +577,8 @@ function RuleDialog({
                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
                     </select>
+                  ) : action.op === 'hide_transaction' ? (
+                    <span className="flex-1 text-sm text-muted-foreground italic">{t('rules.hideTransactionDesc')}</span>
                   ) : (
                     <Input
                       className="flex-1 h-8 text-sm"

@@ -55,6 +55,7 @@ export default function TransactionsPage() {
   const [bulkCategory, setBulkCategory] = useState<string>('')
   const [sortBy, setSortBy] = useState<'date' | 'amount' | 'description'>('date')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [showHidden, setShowHidden] = useState<'off' | 'only' | 'include'>('off')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function TransactionsPage() {
   }, [page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery, sortBy, sortDir],
+    queryKey: ['transactions', page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery, sortBy, sortDir, showHidden],
     queryFn: () =>
       transactions.list({
         page,
@@ -86,6 +87,8 @@ export default function TransactionsPage() {
         q: searchQuery || undefined,
         sort_by: sortBy,
         sort_dir: sortDir,
+        include_hidden: showHidden === 'include' || undefined,
+        only_hidden: showHidden === 'only' || undefined,
       }),
   })
 
@@ -306,6 +309,15 @@ export default function TransactionsPage() {
               />
             </div>
           </div>
+          <select
+            className="border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            value={showHidden}
+            onChange={(e) => { setShowHidden(e.target.value as 'off' | 'only' | 'include'); setPage(1) }}
+          >
+            <option value="off">{t('transactions.hiddenOff')}</option>
+            <option value="only">{t('transactions.hiddenOnly')}</option>
+            <option value="include">{t('transactions.hiddenInclude')}</option>
+          </select>
           {(filterFrom || filterTo || filterAccount || filterCategory || searchInput) && (
             <Button
               variant="ghost"

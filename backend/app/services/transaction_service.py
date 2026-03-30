@@ -51,6 +51,8 @@ async def get_transactions(
     page: int = 1,
     limit: int = 50,
     include_opening_balance: bool = False,
+    include_hidden: bool = False,
+    only_hidden: bool = False,
     search: Optional[str] = None,
     uncategorized: bool = False,
     txn_type: Optional[str] = None,
@@ -75,6 +77,12 @@ async def get_transactions(
     # Exclude opening_balance transactions from the normal list unless explicitly requested
     if not include_opening_balance:
         base_query = base_query.where(Transaction.source != "opening_balance")
+
+    # Hidden filter
+    if only_hidden:
+        base_query = base_query.where(Transaction.is_hidden == True)
+    elif not include_hidden:
+        base_query = base_query.where(Transaction.is_hidden == False)
 
     # Apply filters
     if account_id:
@@ -266,6 +274,25 @@ async def bulk_update_category(
             Transaction.user_id == user_id,
         )
         .values(category_id=category_id)
+    )
+    await session.commit()
+    return result.rowcount
+
+
+async def bulk_hide_by_pattern(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    pattern: str,
+    hidden: bool = True,
+) -> int:
+    term = f"%{pattern}%"
+    result = await session.execute(
+        update(Transaction)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.description.ilike(term),
+        )
+        .values(is_hidden=hidden)
     )
     await session.commit()
     return result.rowcount
