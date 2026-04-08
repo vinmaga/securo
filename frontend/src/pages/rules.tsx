@@ -597,6 +597,7 @@ function RuleDialog({
                     <option value="set_category">{t('rules.setCategory')}</option>
                     <option value="set_payee">{t('rules.setPayee')}</option>
                     <option value="append_notes">{t('rules.appendNotes')}</option>
+                    <option value="hide_transaction">{t('rules.hideTransaction')}</option>
                   </select>
                   {action.op === 'set_category' ? (
                     <select
@@ -610,18 +611,8 @@ function RuleDialog({
                         <option key={cat.id} value={cat.id}>{cat.name}</option>
                       ))}
                     </select>
-                  ) : action.op === 'set_payee' ? (
-                    <select
-                      className={`${selectClass} flex-1`}
-                      value={action.value}
-                      onChange={(e) => updateAction(i, 'value', e.target.value)}
-                      required
-                    >
-                      <option value="">{t('rules.selectPayee')}</option>
-                      {payees.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                  ) : action.op === 'hide_transaction' ? (
+                    <span className="flex-1 text-sm text-muted-foreground italic">{t('rules.hideTransactionDesc')}</span>
                   ) : (
                     <Input
                       className="flex-1 h-8 text-sm"

@@ -40,6 +40,7 @@ class TransactionUpdate(BaseModel):
     notes: Optional[str] = None
     amount_primary: Optional[Decimal] = None
     fx_rate_used: Optional[Decimal] = None
+    is_hidden: Optional[bool] = None
 
 
 class TransactionRead(TransactionBase):
@@ -56,6 +57,7 @@ class TransactionRead(TransactionBase):
     payee_name: Optional[str] = None
     notes: Optional[str] = None
     transfer_pair_id: Optional[uuid.UUID] = None
+    is_hidden: bool = False
     amount_primary: Optional[float] = None
     fx_rate_used: Optional[float] = None
     fx_fallback: bool = False
@@ -69,20 +71,8 @@ class BulkCategorizeRequest(BaseModel):
     category_id: Optional[uuid.UUID] = None
 
 
-class TransferCreate(BaseModel):
-    from_account_id: uuid.UUID
-    to_account_id: uuid.UUID
-    amount: Decimal
-    date: _Date
-    description: str
-    notes: Optional[str] = None
-    fx_rate: Optional[Decimal] = None
-
-
-class TransferRead(BaseModel):
-    debit: TransactionRead
-    credit: TransactionRead
-    transfer_pair_id: uuid.UUID
+class BulkHideByPatternRequest(BaseModel):
+    pattern: str  # substring to match against description (case-insensitive)
 
 
 class TransactionImportPreview(BaseModel):

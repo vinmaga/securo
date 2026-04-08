@@ -242,6 +242,8 @@ export const transactions = {
     page?: number
     limit?: number
     include_opening_balance?: boolean
+    include_hidden?: boolean
+    only_hidden?: boolean
     sort_by?: string
     sort_dir?: string
   }): Promise<PaginatedResponse<Transaction>> => {
