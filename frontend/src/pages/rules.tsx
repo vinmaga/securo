@@ -202,6 +202,27 @@ export default function RulesPage() {
     return list.sort((a, b) => dir * (a.priority - b.priority))
   }, [rulesList, categories, sortBy, sortDir])
 
+  const [sortBy, setSortBy] = useState<'priority' | 'name' | 'category'>('priority')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const sortedRules = useMemo(() => {
+    const list = [...(rulesList ?? [])]
+    const dir = sortDir === 'asc' ? 1 : -1
+    if (sortBy === 'name') {
+      return list.sort((a, b) => dir * a.name.localeCompare(b.name))
+    }
+    if (sortBy === 'category') {
+      const getCategoryName = (rule: Rule) => {
+        const action = rule.actions.find(a => a.op === 'set_category')
+        if (!action) return ''
+        const cat = categories.find(c => c.id === action.value)
+        return cat?.name ?? ''
+      }
+      return list.sort((a, b) => dir * getCategoryName(a).localeCompare(getCategoryName(b)))
+    }
+    return list.sort((a, b) => dir * (a.priority - b.priority))
+  }, [rulesList, categories, sortBy, sortDir])
+
   return (
     <div>
       <PageHeader section={t('rules.section')} title={t('nav.rules')} />
