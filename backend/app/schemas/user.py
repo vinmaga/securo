@@ -15,10 +15,11 @@ class UserPreferences(BaseModel):
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     preferences: Optional[dict] = None
+    is_2fa_enabled: bool = False
 
 
 class UserCreate(schemas.BaseUserCreate):
-    pass
+    preferences: Optional[dict] = None
 
 
 class UserUpdate(schemas.BaseUserUpdate):

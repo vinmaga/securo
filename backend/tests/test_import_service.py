@@ -67,13 +67,16 @@ class TestParseCsv:
         assert transactions[1].type == "credit"
 
     def test_parse_csv_invalid_columns(self):
-        """CSV with unrecognized column names should raise ValueError."""
+        """CSV with unrecognized column names should raise ValueError with found and expected columns."""
         csv_content = (
             "col_a,col_b,col_c\n"
             "foo,bar,baz\n"
         )
-        with pytest.raises(ValueError, match="Could not detect CSV columns"):
+        with pytest.raises(ValueError, match="Found: col_a, col_b, col_c") as exc_info:
             parse_csv(csv_content.encode("utf-8"))
+        # Should also tell the user what columns are expected
+        assert "date" in str(exc_info.value)
+        assert "description" in str(exc_info.value)
 
     def test_parse_csv_brl_amounts(self):
         """CSV with R$ prefix and comma-as-decimal amounts should be parsed correctly.
@@ -306,6 +309,45 @@ class TestParseQif:
         transactions = parse_qif(qif_content.encode("utf-8"))
         assert len(transactions) == 1
         assert transactions[0].amount == Decimal("1250.00")
+
+    def test_parse_qif_latin1_encoding(self):
+        """QIF files from legacy software (e.g. Microsoft Money) using Latin-1 encoding."""
+        qif_content = (
+            "!Type:Bank\n"
+            "D01/15/2026\n"
+            "T-75.00\n"
+            "PCaf\u00e9 Fran\u00e7ais\n"
+            "^\n"
+        )
+        transactions = parse_qif(qif_content.encode("latin-1"))
+        assert len(transactions) == 1
+        assert transactions[0].description == "Caf\u00e9 Fran\u00e7ais"
+        assert transactions[0].amount == Decimal("75.00")
+        assert transactions[0].type == "debit"
+
+    def test_parse_qif_two_digit_year(self):
+        """QIF with 2-digit year date formats (common in Microsoft Money)."""
+        qif_content = (
+            "D01/15/26\n"
+            "T-50.00\n"
+            "PTest\n"
+            "^\n"
+        )
+        transactions = parse_qif(qif_content.encode("utf-8"))
+        assert len(transactions) == 1
+        assert transactions[0].date == date(2026, 1, 15)
+
+    def test_parse_qif_apostrophe_two_digit_year(self):
+        """QIF with apostrophe separator and 2-digit year (Microsoft Money format)."""
+        qif_content = (
+            "D01/15'26\n"
+            "T-100.00\n"
+            "PTest\n"
+            "^\n"
+        )
+        transactions = parse_qif(qif_content.encode("utf-8"))
+        assert len(transactions) == 1
+        assert transactions[0].date == date(2026, 1, 15)
 
 
 class TestParseCamt:

@@ -1,6 +1,9 @@
 import axios from 'axios'
 import type {
   User,
+  AdminUser,
+  AdminUserList,
+  AppSetting,
   Category,
   CategoryGroup,
   BankConnection,
@@ -8,6 +11,8 @@ import type {
   Account,
   AccountSummary,
   Transaction,
+  Payee,
+  PayeeSummary,
   RecurringTransaction,
   ProjectedTransaction,
   Budget,
@@ -17,6 +22,8 @@ import type {
   Asset,
   AssetValue,
   Attachment,
+  Goal,
+  GoalSummary,
   DashboardSummary,
   SpendingByCategory,
   MonthlyTrend,
@@ -73,8 +80,8 @@ export const auth = {
     })
     return data
   },
-  register: async (email: string, password: string) => {
-    const { data } = await api.post('/auth/register', { email, password })
+  register: async (email: string, password: string, preferences?: Record<string, string>) => {
+    const { data } = await api.post('/auth/register', { email, password, preferences })
     return data
   },
   me: async (): Promise<User> => {
@@ -87,6 +94,20 @@ export const auth = {
   },
   changePassword: async (password: string): Promise<User> => {
     const { data } = await api.patch('/users/me', { password })
+    return data
+  },
+  setup2fa: async (): Promise<{ secret: string; otpauth_uri: string }> => {
+    const { data } = await api.post('/auth/2fa/setup')
+    return data
+  },
+  enable2fa: async (code: string): Promise<void> => {
+    await api.post('/auth/2fa/enable', { code })
+  },
+  disable2fa: async (password: string, code: string): Promise<void> => {
+    await api.post('/auth/2fa/disable', { password, code })
+  },
+  verify2fa: async (tempToken: string, code: string): Promise<{ access_token: string; token_type: string }> => {
+    const { data } = await api.post('/auth/2fa/verify', { temp_token: tempToken, code })
     return data
   },
 }
@@ -193,7 +214,7 @@ export const accounts = {
     const { data } = await api.get(`/accounts/${id}/summary`, { params: { from, to } })
     return data
   },
-  balanceHistory: async (id: string, from?: string, to?: string): Promise<{ date: string; balance: number }[]> => {
+  balanceHistory: async (id: string, from?: string, to?: string): Promise<{ date: string; balance: number; balance_primary?: number }[]> => {
     const { data } = await api.get(`/accounts/${id}/balance-history`, { params: { from, to } })
     return data
   },
@@ -212,6 +233,7 @@ export const transactions = {
   list: async (params?: {
     account_id?: string
     category_id?: string
+    payee_id?: string
     uncategorized?: boolean
     type?: string
     from?: string
@@ -220,6 +242,10 @@ export const transactions = {
     page?: number
     limit?: number
     include_opening_balance?: boolean
+    include_hidden?: boolean
+    only_hidden?: boolean
+    sort_by?: string
+    sort_dir?: string
   }): Promise<PaginatedResponse<Transaction>> => {
     const { data } = await api.get('/transactions', { params })
     return data
@@ -238,6 +264,18 @@ export const transactions = {
   },
   delete: async (id: string): Promise<void> => {
     await api.delete(`/transactions/${id}`)
+  },
+  createTransfer: async (transfer: {
+    from_account_id: string
+    to_account_id: string
+    amount: number
+    date: string
+    description: string
+    notes?: string
+    fx_rate?: number
+  }): Promise<{ debit: Transaction; credit: Transaction; transfer_pair_id: string }> => {
+    const { data } = await api.post('/transactions/transfer', transfer)
+    return data
   },
   bulkCategorize: async (transactionIds: string[], categoryId: string | null): Promise<{ updated: number }> => {
     const { data } = await api.patch('/transactions/bulk-categorize', {
@@ -309,6 +347,37 @@ export const transactions = {
     delete: async (transactionId: string, attachmentId: string): Promise<void> => {
       await api.delete(`/transactions/${transactionId}/attachments/${attachmentId}`)
     },
+  },
+}
+
+// Payees
+export const payees = {
+  list: async (): Promise<Payee[]> => {
+    const { data } = await api.get('/payees')
+    return data
+  },
+  get: async (id: string): Promise<Payee> => {
+    const { data } = await api.get(`/payees/${id}`)
+    return data
+  },
+  summary: async (id: string, from?: string, to?: string): Promise<PayeeSummary> => {
+    const { data } = await api.get(`/payees/${id}/summary`, { params: { from, to } })
+    return data
+  },
+  create: async (payee: { name: string; type?: string; notes?: string }): Promise<Payee> => {
+    const { data } = await api.post('/payees', payee)
+    return data
+  },
+  update: async (id: string, payee: Partial<Payee>): Promise<Payee> => {
+    const { data } = await api.patch(`/payees/${id}`, payee)
+    return data
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/payees/${id}`)
+  },
+  merge: async (targetId: string, sourceIds: string[]): Promise<{ merged: number; transactions_reassigned: number }> => {
+    const { data } = await api.post('/payees/merge', { target_id: targetId, source_ids: sourceIds })
+    return data
   },
 }
 
@@ -385,6 +454,33 @@ export const budgets = {
   },
   comparison: async (month?: string): Promise<BudgetVsActual[]> => {
     const { data } = await api.get('/budgets/comparison', { params: { month } })
+    return data
+  },
+}
+
+// Goals
+export const goals = {
+  list: async (status?: string): Promise<Goal[]> => {
+    const { data } = await api.get('/goals', { params: { status } })
+    return data
+  },
+  get: async (id: string): Promise<Goal> => {
+    const { data } = await api.get(`/goals/${id}`)
+    return data
+  },
+  create: async (goal: Partial<Goal>): Promise<Goal> => {
+    const { data } = await api.post('/goals', goal)
+    return data
+  },
+  update: async (id: string, goal: Partial<Goal>): Promise<Goal> => {
+    const { data } = await api.patch(`/goals/${id}`, goal)
+    return data
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/goals/${id}`)
+  },
+  summary: async (limit = 3): Promise<GoalSummary[]> => {
+    const { data } = await api.get('/goals/summary', { params: { limit } })
     return data
   },
 }
@@ -521,6 +617,41 @@ export const backup = {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  },
+}
+
+// Admin
+export const admin = {
+  listUsers: async (params?: { search?: string; page?: number; limit?: number }): Promise<AdminUserList> => {
+    const { data } = await api.get('/admin/users', { params })
+    return data
+  },
+  getUser: async (id: string): Promise<AdminUser> => {
+    const { data } = await api.get(`/admin/users/${id}`)
+    return data
+  },
+  createUser: async (user: { email: string; password: string; is_superuser?: boolean; preferences?: Record<string, unknown> }): Promise<AdminUser> => {
+    const { data } = await api.post('/admin/users', user)
+    return data
+  },
+  updateUser: async (id: string, user: Partial<{ email: string; password: string; is_active: boolean; is_superuser: boolean; preferences: Record<string, unknown> }>): Promise<AdminUser> => {
+    const { data } = await api.patch(`/admin/users/${id}`, user)
+    return data
+  },
+  deleteUser: async (id: string): Promise<void> => {
+    await api.delete(`/admin/users/${id}`)
+  },
+  getSetting: async (key: string): Promise<AppSetting> => {
+    const { data } = await api.get(`/admin/settings/${key}`)
+    return data
+  },
+  updateSetting: async (key: string, value: string): Promise<AppSetting> => {
+    const { data } = await api.patch(`/admin/settings/${key}`, { value })
+    return data
+  },
+  registrationStatus: async (): Promise<{ enabled: boolean }> => {
+    const { data } = await api.get('/admin/registration-status')
+    return data
   },
 }
 

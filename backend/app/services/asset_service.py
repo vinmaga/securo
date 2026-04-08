@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -348,13 +348,41 @@ async def get_asset_values(
 async def add_asset_value(
     session: AsyncSession, asset_id: uuid.UUID, user_id: uuid.UUID, data: AssetValueCreate
 ) -> Optional[AssetValueRead]:
-    """Add a new value entry for an asset."""
-    # Verify ownership
-    owner_check = await session.execute(
-        select(Asset.id).where(Asset.id == asset_id, Asset.user_id == user_id)
+    """Add a new value entry for an asset.
+
+    For growth_rule assets, deletes all rule-generated values after the given date
+    and regenerates growth from the new value as the base.
+    """
+    asset_result = await session.execute(
+        select(Asset).where(Asset.id == asset_id, Asset.user_id == user_id)
     )
-    if not owner_check.scalar_one_or_none():
+    asset = asset_result.scalar_one_or_none()
+    if not asset:
         return None
+
+    if asset.valuation_method == "growth_rule" and asset.growth_rate is not None:
+        # Delete all rule-generated values on or after the new entry date
+        await session.execute(
+            sa_delete(AssetValue).where(
+                AssetValue.asset_id == asset_id,
+                AssetValue.source == "rule",
+                AssetValue.date >= data.date,
+            )
+        )
+        await session.flush()
+
+        # Regenerate from new value as base
+        new_values = _generate_growth_values(
+            asset_id=asset_id,
+            base_amount=float(data.amount),
+            base_date=data.date,
+            growth_type=asset.growth_type,
+            growth_rate=float(asset.growth_rate),
+            growth_frequency=asset.growth_frequency,
+            growth_start_date=asset.growth_start_date,
+        )
+        for v in new_values:
+            session.add(v)
 
     value = AssetValue(
         asset_id=asset_id,
@@ -363,6 +391,7 @@ async def add_asset_value(
         source="manual",
     )
     session.add(value)
+
     await session.commit()
     await session.refresh(value)
     return AssetValueRead.model_validate(value)

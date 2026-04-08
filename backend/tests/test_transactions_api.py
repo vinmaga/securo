@@ -1,9 +1,16 @@
+import uuid
+from datetime import date, datetime, timezone
+from decimal import Decimal
+
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.models.category import Category
+from app.models.user import User
 
 
 @pytest.mark.asyncio
@@ -290,3 +297,170 @@ async def test_create_transaction_without_account_fails(
         },
     )
     assert response.status_code == 422
+
+
+# --- exclude_transfers tests ---
+
+@pytest_asyncio.fixture
+async def test_transactions_with_transfers(
+    session: AsyncSession, test_user: User, test_account: Account,
+) -> list[Transaction]:
+    """Create a mix of regular and transfer transactions."""
+    today = date.today()
+    pair_id = uuid.uuid4()
+    transactions = []
+    data = [
+        ("GROCERIES", Decimal("50.00"), today, "debit", None, None),
+        ("SALARY", Decimal("3000.00"), today, "credit", None, None),
+        ("Transfer out", Decimal("200.00"), today, "debit", None, pair_id),
+        ("Transfer in", Decimal("200.00"), today, "credit", None, pair_id),
+    ]
+    for desc, amount, dt, typ, cat_id, transfer_id in data:
+        txn = Transaction(
+            id=uuid.uuid4(),
+            user_id=test_user.id,
+            account_id=test_account.id,
+            category_id=cat_id,
+            description=desc,
+            amount=amount,
+            date=dt,
+            type=typ,
+            source="transfer" if transfer_id else "manual",
+            transfer_pair_id=transfer_id,
+            created_at=datetime.now(timezone.utc),
+        )
+        session.add(txn)
+        transactions.append(txn)
+    await session.commit()
+    for txn in transactions:
+        await session.refresh(txn)
+    return transactions
+
+
+@pytest.mark.asyncio
+async def test_list_transactions_includes_transfers_by_default(
+    client: AsyncClient, auth_headers, test_transactions_with_transfers,
+):
+    """Without exclude_transfers, all transactions including transfers are returned."""
+    response = await client.get("/api/transactions", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 4
+    descriptions = [item["description"] for item in data["items"]]
+    assert "Transfer out" in descriptions
+    assert "Transfer in" in descriptions
+
+
+@pytest.mark.asyncio
+async def test_list_transactions_exclude_transfers(
+    client: AsyncClient, auth_headers, test_transactions_with_transfers,
+):
+    """With exclude_transfers=true, transfer transactions are hidden."""
+    response = await client.get(
+        "/api/transactions?exclude_transfers=true", headers=auth_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 2
+    descriptions = [item["description"] for item in data["items"]]
+    assert "GROCERIES" in descriptions
+    assert "SALARY" in descriptions
+    assert "Transfer out" not in descriptions
+    assert "Transfer in" not in descriptions
+
+
+@pytest.mark.asyncio
+async def test_exclude_transfers_false_includes_all(
+    client: AsyncClient, auth_headers, test_transactions_with_transfers,
+):
+    """Explicitly setting exclude_transfers=false still includes transfers."""
+    response = await client.get(
+        "/api/transactions?exclude_transfers=false", headers=auth_headers
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] == 4
+
+
+@pytest.mark.asyncio
+async def test_export_csv_format(client: AsyncClient, auth_headers, test_transactions):
+    resp = await client.get("/api/transactions/export", headers=auth_headers)
+    assert resp.status_code == 200
+    assert "text/csv" in resp.headers.get("content-type", "")
+    content = resp.text
+    assert content.startswith("\ufeff")
+    assert "date" in content
+    assert "description" in content
+    assert "amount" in content
+
+
+@pytest.mark.asyncio
+async def test_export_csv_with_type_filter(client: AsyncClient, auth_headers, test_transactions):
+    resp = await client.get(
+        "/api/transactions/export",
+        params={"type": "debit"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_export_csv_uncategorized(client: AsyncClient, auth_headers, test_transactions):
+    resp = await client.get(
+        "/api/transactions/export",
+        params={"uncategorized": "true"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_bulk_categorize(
+    client: AsyncClient, auth_headers, test_transactions, test_categories,
+):
+    txn_id = str(test_transactions[4].id)
+    resp = await client.patch(
+        "/api/transactions/bulk-categorize",
+        json={"transaction_ids": [txn_id], "category_id": str(test_categories[0].id)},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["updated"] == 1
+
+
+@pytest.mark.asyncio
+async def test_create_transfer_api(client: AsyncClient, auth_headers, test_account):
+    dest_resp = await client.post(
+        "/api/accounts",
+        json={"name": "Transfer Dest", "type": "savings", "balance": 0, "currency": "BRL"},
+        headers=auth_headers,
+    )
+    dest_id = dest_resp.json()["id"]
+    resp = await client.post(
+        "/api/transactions/transfer",
+        json={
+            "from_account_id": str(test_account.id),
+            "to_account_id": dest_id,
+            "description": "API Transfer",
+            "amount": 500,
+            "date": date.today().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_create_transfer_invalid_account(client: AsyncClient, auth_headers):
+    resp = await client.post(
+        "/api/transactions/transfer",
+        json={
+            "from_account_id": str(uuid.uuid4()),
+            "to_account_id": str(uuid.uuid4()),
+            "description": "Bad Transfer",
+            "amount": 100,
+            "date": date.today().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400

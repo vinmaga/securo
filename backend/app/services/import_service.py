@@ -16,6 +16,7 @@ from app.models.transaction import Transaction
 from app.schemas.transaction import TransactionBase
 from app.services.rule_service import apply_rules_to_transaction
 from app.services.fx_rate_service import stamp_primary_amount
+from app.services.payee_service import get_or_create_payee
 
 
 def parse_ofx(content: bytes) -> list[TransactionBase]:
@@ -25,12 +26,14 @@ def parse_ofx(content: bytes) -> list[TransactionBase]:
 
     for account in ofx.accounts:
         for txn in account.statement.transactions:
+            raw_payee = getattr(txn, 'payee', None) or None
             transactions.append(TransactionBase(
                 description=txn.memo or txn.payee or "Unknown",
                 amount=abs(Decimal(str(txn.amount))),
                 date=txn.date.date() if hasattr(txn.date, 'date') else txn.date,
                 type="credit" if txn.amount > 0 else "debit",
                 external_id=getattr(txn, 'id', None),
+                payee_raw=raw_payee,
             ))
 
     return transactions
@@ -38,7 +41,11 @@ def parse_ofx(content: bytes) -> list[TransactionBase]:
 
 def parse_qif(content: bytes) -> list[TransactionBase]:
     """Parse QIF file content and return transactions."""
-    text = content.decode('utf-8-sig')
+    # Try UTF-8 first, fall back to Latin-1 for legacy software (e.g. Microsoft Money)
+    try:
+        text = content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = content.decode('latin-1')
     transactions = []
 
     # Split into transaction blocks by "^"
@@ -59,8 +66,12 @@ def parse_qif(content: bytes) -> list[TransactionBase]:
                 continue
             tag, value = line[0], line[1:]
             if tag == 'D':
-                # Try common date formats
-                for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d', "%m/%d'%Y"]:
+                # Try common date formats (including 2-digit year variants)
+                for fmt in [
+                    '%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d',
+                    "%m/%d'%Y", "%m/%d'%y",
+                    '%m/%d/%y', '%d/%m/%y',
+                ]:
                     try:
                         txn_date = datetime.strptime(value.strip(), fmt).date()
                         break
@@ -85,6 +96,7 @@ def parse_qif(content: bytes) -> list[TransactionBase]:
             amount=abs(amount),
             date=txn_date,
             type="credit" if amount > 0 else "debit",
+            payee_raw=payee,
         ))
 
     return transactions
@@ -222,7 +234,7 @@ def parse_csv(
 
     if use_split:
         if inflow_col not in fieldnames or outflow_col not in fieldnames:
-            raise ValueError(f"Inflow/outflow columns not found in CSV. Available: {fieldnames}")
+            raise ValueError(f"Inflow/outflow columns not found in CSV. Available columns: {', '.join(fieldnames)}")
         amount_col = None
     else:
         amount_col = find_col(amount_cols)
@@ -231,9 +243,15 @@ def parse_csv(
     fx_rate_col = find_col(fx_rate_cols)
 
     if not date_col or not desc_col:
-        raise ValueError("Could not detect CSV columns. Expected: date, description, amount")
+        raise ValueError(
+            f"Could not detect CSV columns. Found: {', '.join(fieldnames)}. "
+            f"Expected columns like: date, description, amount (or Portuguese equivalents: data, descricao, valor)"
+        )
     if not use_split and not amount_col:
-        raise ValueError("Could not detect CSV columns. Expected: date, description, amount")
+        raise ValueError(
+            f"Could not detect amount column. Found: {', '.join(fieldnames)}. "
+            f"Expected a column named: {', '.join(amount_cols)}"
+        )
 
     # Determine date formats to try
     if date_format and date_format in DATE_FORMAT_MAP:
@@ -385,6 +403,13 @@ async def import_transactions(
             skipped += 1
             continue
 
+        # Resolve payee entity from raw payee text (OFX/QIF)
+        import_payee_id = None
+        import_payee_raw = getattr(txn_data, "payee_raw", None)
+        if import_payee_raw:
+            import_payee_entity = await get_or_create_payee(session, user_id, import_payee_raw)
+            import_payee_id = import_payee_entity.id
+
         transaction = Transaction(
             user_id=user_id,
             account_id=account_id,
@@ -396,6 +421,8 @@ async def import_transactions(
             import_id=import_log.id,
             external_id=txn_data.external_id,
             currency=txn_currency,
+            payee=import_payee_raw,
+            payee_id=import_payee_id,
         )
 
         # If CSV provided an fx_rate, use it directly

@@ -98,6 +98,12 @@ def apply_rule_actions(
             except (ValueError, AttributeError):
                 pass
 
+        elif op == "set_payee":
+            try:
+                tx.payee_id = uuid.UUID(str(value))
+            except (ValueError, AttributeError):
+                pass
+
         elif op == "append_notes":
             new_tags = str(value or "").strip()
             if not new_tags:
@@ -105,5 +111,8 @@ def apply_rule_actions(
             existing = tx.notes or ""
             if new_tags not in existing:
                 tx.notes = (existing + " " + new_tags).strip() if existing else new_tags
+
+        elif op == "hide_transaction":
+            tx.is_hidden = True
 
     return category_already_set

@@ -3,7 +3,9 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
@@ -19,6 +21,9 @@ from app.models.rule import Rule
 from app.models.asset import Asset  # noqa: F401
 from app.models.asset_value import AssetValue  # noqa: F401
 from app.models.transaction_attachment import TransactionAttachment  # noqa: F401
+from app.models.payee import Payee, PayeeMapping  # noqa: F401
+from app.models.app_settings import AppSetting  # noqa: F401
+from app.models.goal import Goal  # noqa: F401
 
 # Use SQLite for tests — fast, no external dependency
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
@@ -132,6 +137,50 @@ async def auth_token(client: AsyncClient, test_user: User) -> str:
 def auth_headers(auth_token: str) -> dict:
     """Auth headers for authenticated requests."""
     return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest_asyncio.fixture
+async def test_superuser(session: AsyncSession, clean_db) -> User:
+    """Create a test superuser (admin)."""
+    import bcrypt as _bcrypt
+
+    hashed = _bcrypt.hashpw(b"adminpass123", _bcrypt.gensalt()).decode()
+    user = User(
+        id=uuid.uuid4(),
+        email="admin@example.com",
+        hashed_password=hashed,
+        is_active=True,
+        is_superuser=True,
+        is_verified=True,
+        preferences={
+            "language": "en",
+            "date_format": "MM/DD/YYYY",
+            "timezone": "UTC",
+            "currency_display": "USD",
+        },
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def admin_auth_token(client: AsyncClient, test_superuser: User) -> str:
+    """Get an auth token for the superuser."""
+    response = await client.post(
+        "/api/auth/login",
+        data={"username": "admin@example.com", "password": "adminpass123"},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    assert response.status_code == 200, f"Admin login failed: {response.text}"
+    return response.json()["access_token"]
+
+
+@pytest_asyncio.fixture
+def admin_auth_headers(admin_auth_token: str) -> dict:
+    """Auth headers for admin requests."""
+    return {"Authorization": f"Bearer {admin_auth_token}"}
 
 
 @pytest_asyncio.fixture
@@ -279,3 +328,89 @@ async def test_rules(
     for rule in rules:
         await session.refresh(rule)
     return rules
+
+
+@pytest_asyncio.fixture
+async def test_user_with_2fa(session: AsyncSession, clean_db) -> User:
+    """Create a test user with 2FA enabled."""
+    import bcrypt as _bcrypt
+    import pyotp
+
+    hashed = _bcrypt.hashpw(b"testpass123", _bcrypt.gensalt()).decode()
+    totp_secret = pyotp.random_base32()
+    user = User(
+        id=uuid.uuid4(),
+        email="2fa@example.com",
+        hashed_password=hashed,
+        is_active=True,
+        is_superuser=False,
+        is_verified=True,
+        totp_secret=totp_secret,
+        is_2fa_enabled=True,
+        preferences={
+            "language": "en",
+            "date_format": "MM/DD/YYYY",
+            "timezone": "UTC",
+            "currency_display": "USD",
+        },
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis():
+    """Provide a no-op Redis mock so rate limiting never blocks tests."""
+    mock = AsyncMock()
+    # Pipeline mock that always reports 0 prior requests (never rate-limits)
+    pipe_mock = AsyncMock()
+    pipe_mock.zremrangebyscore = AsyncMock()
+    pipe_mock.zcard = AsyncMock()
+    pipe_mock.zadd = AsyncMock()
+    pipe_mock.expire = AsyncMock()
+    pipe_mock.execute = AsyncMock(return_value=[0, 0, True, True])
+    mock.pipeline = lambda: pipe_mock
+    # Key-value ops for 2FA temp tokens
+    mock.get = AsyncMock(return_value=None)
+    mock.set = AsyncMock()
+    mock.delete = AsyncMock()
+
+    async def _fake_get_redis():
+        return mock
+
+    # Reset the cached singleton so no real Redis connection leaks into tests
+    import app.core.redis as redis_mod
+    original = redis_mod._redis
+    redis_mod._redis = None
+
+    with patch("app.core.redis.get_redis", _fake_get_redis), \
+         patch("app.core.rate_limit.get_redis", _fake_get_redis), \
+         patch("app.api.custom_auth.get_redis", _fake_get_redis), \
+         patch("app.api.two_factor.get_redis", _fake_get_redis):
+        yield mock
+
+    redis_mod._redis = original
+
+
+@pytest.fixture(autouse=True)
+def _no_external_fx_sync():
+    """Prevent tests from hitting the real OpenExchangeRates API."""
+    with patch("app.services.fx_rate_service._provider") as mock_provider:
+        mock_provider.name = "test"
+        mock_provider.fetch_latest = AsyncMock(return_value={})
+        mock_provider.fetch_historical = AsyncMock(return_value={})
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_provider_registry():
+    """Reset the provider registry so local env config doesn't leak into tests."""
+    from app.providers import _PROVIDERS
+
+    original = dict(_PROVIDERS)
+    _PROVIDERS.clear()
+    yield
+    _PROVIDERS.clear()
+    _PROVIDERS.update(original)

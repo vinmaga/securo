@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { transactions, categories as categoriesApi, accounts as accountsApi, recurring } from '@/lib/api'
+import { transactions, categories as categoriesApi, accounts as accountsApi, recurring, payees as payeesApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,11 +15,12 @@ import {
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, Check, Download, Paperclip, Search, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Paperclip, Search, X } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { TransactionDialog, extractApiError } from '@/components/transaction-dialog'
+import { TransferDialog } from '@/components/transfer-dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
@@ -35,6 +37,7 @@ function parseHashtags(notes: string | null): string[] {
 
 export default function TransactionsPage() {
   const { t, i18n } = useTranslation()
+  const [searchParams] = useSearchParams()
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
@@ -49,10 +52,15 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [filterPayee, setFilterPayee] = useState<string>(searchParams.get('payee_id') ?? '')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkCategory, setBulkCategory] = useState<string>('')
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'description'>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [showHidden, setShowHidden] = useState<'off' | 'only' | 'include'>('off')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   useEffect(() => {
@@ -68,20 +76,25 @@ export default function TransactionsPage() {
   useEffect(() => {
     setSelectedIds(new Set())
     setBulkCategory('')
-  }, [page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery])
+  }, [page, filterAccount, filterCategory, filterPayee, filterFrom, filterTo, searchQuery])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery],
+    queryKey: ['transactions', page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery, sortBy, sortDir, showHidden],
     queryFn: () =>
       transactions.list({
         page,
         limit: 20,
         account_id: filterAccount || undefined,
         category_id: filterCategory === '__uncategorized__' ? undefined : (filterCategory || undefined),
+        payee_id: filterPayee || undefined,
         uncategorized: filterCategory === '__uncategorized__' ? true : undefined,
         from: filterFrom || undefined,
         to: filterTo || undefined,
         q: searchQuery || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        include_hidden: showHidden === 'include' || undefined,
+        only_hidden: showHidden === 'only' || undefined,
       }),
   })
 
@@ -93,6 +106,11 @@ export default function TransactionsPage() {
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list(),
+  })
+
+  const { data: payeesList } = useQuery({
+    queryKey: ['payees'],
+    queryFn: payeesApi.list,
   })
 
   const { data: recurringList } = useQuery({
@@ -178,6 +196,28 @@ export default function TransactionsPage() {
     },
   })
 
+  const transferMutation = useMutation({
+    mutationFn: (data: {
+      from_account_id: string
+      to_account_id: string
+      amount: number
+      date: string
+      description: string
+      notes?: string
+      fx_rate?: number
+    }) => transactions.createTransfer(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      setTransferDialogOpen(false)
+      toast.success(t('transactions.transferCreated'))
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error))
+    },
+  })
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -241,6 +281,10 @@ export default function TransactionsPage() {
               <Download size={16} className="mr-1.5" />
               {exporting ? t('transactions.exporting') : t('transactions.exportCsv')}
             </Button>
+            <Button variant="outline" onClick={() => setTransferDialogOpen(true)}>
+              <ArrowLeftRight size={16} className="mr-1.5" />
+              {t('transactions.transfer')}
+            </Button>
             <Button onClick={() => { setEditingTx(null); setDialogOpen(true) }}>
               + {t('transactions.addManual')}
             </Button>
@@ -283,6 +327,16 @@ export default function TransactionsPage() {
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
+            <select
+              className="border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px] min-w-0"
+              value={filterPayee}
+              onChange={(e) => { setFilterPayee(e.target.value); setPage(1) }}
+            >
+              <option value="">{t('payees.payee')}: {t('transactions.all')}</option>
+              {payeesList?.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex md:gap-3">
             <div className="flex items-center gap-2">
@@ -302,12 +356,21 @@ export default function TransactionsPage() {
               />
             </div>
           </div>
+          <select
+            className="border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            value={showHidden}
+            onChange={(e) => { setShowHidden(e.target.value as 'off' | 'only' | 'include'); setPage(1) }}
+          >
+            <option value="off">{t('transactions.hiddenOff')}</option>
+            <option value="only">{t('transactions.hiddenOnly')}</option>
+            <option value="include">{t('transactions.hiddenInclude')}</option>
+          </select>
           {(filterFrom || filterTo || filterAccount || filterCategory || searchInput) && (
             <Button
               variant="ghost"
               size="sm"
               className="text-muted-foreground hover:text-foreground"
-              onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterAccount(''); setFilterCategory(''); setSearchInput(''); setSearchQuery(''); setPage(1) }}
+              onClick={() => { setFilterFrom(''); setFilterTo(''); setFilterAccount(''); setFilterCategory(''); setFilterPayee(''); setSearchInput(''); setSearchQuery(''); setPage(1) }}
             >
               {t('transactions.clearFilters')}
             </Button>
@@ -347,10 +410,35 @@ export default function TransactionsPage() {
                     className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                   />
                 </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2">{t('transactions.description')}</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2">
+                  <span className="inline-flex items-center gap-3">
+                    <button
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sortBy === 'date' ? 'text-foreground' : ''}`}
+                      onClick={() => { setSortBy('date'); setSortDir(sortBy === 'date' && sortDir === 'desc' ? 'asc' : 'desc') }}
+                    >
+                      {t('transactions.date')}
+                      {sortBy === 'date' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    </button>
+                    <button
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sortBy === 'description' ? 'text-foreground' : ''}`}
+                      onClick={() => { setSortBy('description'); setSortDir(sortBy === 'description' && sortDir === 'asc' ? 'desc' : 'asc') }}
+                    >
+                      {t('transactions.description')}
+                      {sortBy === 'description' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    </button>
+                  </span>
+                </TableHead>
                 <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[180px]">{t('transactions.category')}</TableHead>
                 <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px]">{t('transactions.account')}</TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px]">{t('transactions.amount')}</TableHead>
+                <TableHead
+                  className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px] cursor-pointer select-none hover:text-foreground"
+                  onClick={() => { setSortBy('amount'); setSortDir(sortBy === 'amount' && sortDir === 'desc' ? 'asc' : 'desc') }}
+                >
+                  <span className="inline-flex items-center justify-end gap-1 w-full">
+                    {sortBy === 'amount' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    {t('transactions.amount')}
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -375,6 +463,13 @@ export default function TransactionsPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-foreground truncate">{tx.description}</p>
+                          {!!tx.transfer_pair_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                              <ArrowLeftRight className="h-3 w-3" />
+                              {t('transactions.transfer')}
+                              <span title={t('transactions.transferTooltip')}><HelpCircle className="h-3 w-3 text-blue-400" /></span>
+                            </span>
+                          )}
                           {recurringList?.some(r => r.description === tx.description && r.type === tx.type) && (
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/5 border border-primary/10 px-1.5 py-0.5 rounded-full">
                               {t('transactions.recurringBadge')}
@@ -518,6 +613,15 @@ export default function TransactionsPage() {
           </div>
         </div>
       </div>
+
+      {/* Transfer Dialog */}
+      <TransferDialog
+        open={transferDialogOpen}
+        onClose={() => setTransferDialogOpen(false)}
+        accounts={accountsList ?? []}
+        onSave={(data) => transferMutation.mutate(data)}
+        loading={transferMutation.isPending}
+      />
 
       {/* Add/Edit Dialog */}
       <TransactionDialog

@@ -8,9 +8,10 @@ import { toast } from 'sonner'
 import type { Transaction } from '@/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, ArrowLeftRight, Clock, Paperclip, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, Clock, HelpCircle, Paperclip, X } from 'lucide-react'
 import { CategoryIcon } from '@/components/category-icon'
 import { TransactionDialog, extractApiError } from '@/components/transaction-dialog'
+import { TransferDialog } from '@/components/transfer-dialog'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
@@ -52,13 +53,20 @@ export default function AccountDetailPage() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [filterFrom, setFilterFrom] = useState(defaultFrom)
   const [filterTo, setFilterTo] = useState(defaultTo)
+  const [showPrimary, setShowPrimary] = useState(false)
 
   const { data: account, isLoading: accountLoading } = useQuery({
     queryKey: ['accounts', id],
     queryFn: () => accounts.get(id!),
     enabled: !!id,
+  })
+
+  const { data: accountsList } = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => accounts.list(),
   })
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -131,31 +139,63 @@ export default function AccountDetailPage() {
     onError: () => toast.error(t('common.error')),
   })
 
+  const transferMutation = useMutation({
+    mutationFn: (data: {
+      from_account_id: string
+      to_account_id: string
+      amount: number
+      date: string
+      description: string
+      notes?: string
+      fx_rate?: number
+    }) => transactions.createTransfer(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', id, 'summary'] })
+      queryClient.invalidateQueries({ queryKey: ['accounts', id, 'balance-history'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      setTransferDialogOpen(false)
+      toast.success(t('transactions.transferCreated'))
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error))
+    },
+  })
+
+  // Whether to use primary currency amounts (for foreign-currency accounts with toggle, or domestic accounts with foreign txs)
+  const isCreditCard = account?.type === 'credit_card'
+  const isForeignCurrency = account ? account.currency !== userCurrency : false
+  const usePrimary = !isForeignCurrency || showPrimary
+  const displayCurrency = (isForeignCurrency && !showPrimary) ? (account?.currency || userCurrency) : userCurrency
+
   // Chart data — simple daily balance series
   const chartData = useMemo(() => {
     if (!balanceHistory) return []
     return balanceHistory.map(p => ({
       label: formatDateStr(p.date, locale),
       date: p.date,
-      balance: p.balance,
+      balance: usePrimary ? (p.balance_primary ?? p.balance) : p.balance,
     }))
-  }, [balanceHistory, locale])
+  }, [balanceHistory, locale, usePrimary])
 
   // Running balance computation for transaction table
-  const isCreditCard = account?.type === 'credit_card'
   const txWithRunningBalance = useMemo((): TxWithBalance[] => {
     if (!txData?.items || summary === undefined) return []
-    // Use the last chart point as reference if available, else current_balance
-    const endBalance = balanceHistory?.length
-      ? balanceHistory[balanceHistory.length - 1].balance
-      : summary.current_balance
+    const endBalance = usePrimary
+      ? (balanceHistory?.length
+          ? (balanceHistory[balanceHistory.length - 1].balance_primary ?? balanceHistory[balanceHistory.length - 1].balance)
+          : (summary.current_balance_primary ?? summary.current_balance))
+      : (balanceHistory?.length
+          ? balanceHistory[balanceHistory.length - 1].balance
+          : summary.current_balance)
     const sorted = [...txData.items].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
     )
     let running = endBalance
     return sorted.map((tx) => {
       const balanceAtPoint = running
-      const amt = Number(tx.amount)
+      const amt = usePrimary && tx.amount_primary != null ? Number(tx.amount_primary) : Number(tx.amount)
       if (isCreditCard) {
         running -= tx.type === 'debit' ? amt : -amt
       } else {
@@ -163,7 +203,7 @@ export default function AccountDetailPage() {
       }
       return { ...tx, runningBalance: balanceAtPoint }
     })
-  }, [txData, summary, isCreditCard, balanceHistory])
+  }, [txData, summary, isCreditCard, balanceHistory, usePrimary])
 
   const hasFilters = filterFrom !== defaultFrom() || filterTo !== defaultTo()
 
@@ -183,8 +223,6 @@ export default function AccountDetailPage() {
     return <p className="text-muted-foreground">{t('accounts.notFound')}</p>
   }
 
-  const currency = account.currency || userCurrency
-
   return (
     <div>
       {/* Header bar with date range */}
@@ -200,6 +238,12 @@ export default function AccountDetailPage() {
           <span className="text-xs font-medium bg-muted text-muted-foreground px-2.5 py-1 rounded-full capitalize">
             {account.type}
           </span>
+          {!account.is_closed && (
+            <Button variant="outline" size="sm" className="ml-auto" onClick={() => setTransferDialogOpen(true)}>
+              <ArrowLeftRight className="h-4 w-4 mr-1" />
+              {t('transactions.transfer')}
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex items-center gap-2">
@@ -229,6 +273,22 @@ export default function AccountDetailPage() {
               {t('transactions.clearFilters')}
             </Button>
           )}
+          {isForeignCurrency && (
+            <div className="ml-auto inline-flex rounded-lg border border-border bg-muted p-0.5 text-xs font-medium">
+              <button
+                onClick={() => setShowPrimary(false)}
+                className={`px-3 py-1.5 rounded-md transition-colors ${!showPrimary ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {account.currency}
+              </button>
+              <button
+                onClick={() => setShowPrimary(true)}
+                className={`px-3 py-1.5 rounded-md transition-colors ${showPrimary ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                {userCurrency}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -253,7 +313,10 @@ export default function AccountDetailPage() {
             {t('accounts.currentBalance')}
           </p>
           <p className={`text-base sm:text-2xl font-bold tabular-nums ${(account.type === 'credit_card' ? (summary?.current_balance ?? 0) > 0 : (summary?.current_balance ?? 0) < 0) ? 'text-rose-500' : 'text-foreground'}`}>
-            {mask(formatCurrency(summary?.current_balance ?? 0, currency, locale))}
+            {mask(formatCurrency(
+              (showPrimary ? summary?.current_balance_primary : undefined) ?? summary?.current_balance ?? 0,
+              displayCurrency, locale
+            ))}
           </p>
         </div>
         <div className="bg-card rounded-xl border border-border shadow-sm p-3 sm:p-4">
@@ -261,7 +324,10 @@ export default function AccountDetailPage() {
             {t('accounts.income')}
           </p>
           <p className="text-base sm:text-2xl font-bold tabular-nums text-emerald-600">
-            {mask(formatCurrency(summary?.monthly_income ?? 0, currency, locale))}
+            {mask(formatCurrency(
+              (showPrimary ? summary?.monthly_income_primary : undefined) ?? summary?.monthly_income ?? 0,
+              displayCurrency, locale
+            ))}
           </p>
         </div>
         <div className="bg-card rounded-xl border border-border shadow-sm p-3 sm:p-4">
@@ -269,7 +335,10 @@ export default function AccountDetailPage() {
             {t('accounts.expenses')}
           </p>
           <p className="text-base sm:text-2xl font-bold tabular-nums text-rose-500">
-            {mask(formatCurrency(summary?.monthly_expenses ?? 0, currency, locale))}
+            {mask(formatCurrency(
+              (showPrimary ? summary?.monthly_expenses_primary : undefined) ?? summary?.monthly_expenses ?? 0,
+              displayCurrency, locale
+            ))}
           </p>
         </div>
       </div>
@@ -306,7 +375,7 @@ export default function AccountDetailPage() {
                   tickFormatter={(v) => {
                     if (privacyMode) return ''
                     if (v === 0) return '0'
-                    return formatCurrency(v, currency, locale).replace(/,00$/, '').replace(/\.00$/, '')
+                    return formatCurrency(v, displayCurrency, locale).replace(/,00$/, '').replace(/\.00$/, '')
                   }}
                   tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                   axisLine={false}
@@ -320,7 +389,7 @@ export default function AccountDetailPage() {
                 />
                 <Tooltip
                   formatter={(value) => [
-                    value !== null ? (privacyMode ? MASK : formatCurrency(Number(value), currency, locale)) : '\u2014',
+                    value !== null ? (privacyMode ? MASK : formatCurrency(Number(value), displayCurrency, locale)) : '\u2014',
                     t('accounts.currentBalance'),
                   ]}
                   labelFormatter={(label) => label}
@@ -405,6 +474,7 @@ export default function AccountDetailPage() {
                               <span className="ml-2 inline-flex items-center gap-1 text-xs text-blue-600 font-normal bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
                                 <ArrowLeftRight className="h-3 w-3" />
                                 {t('transactions.transfer')}
+                                <span title={t('transactions.transferTooltip')}><HelpCircle className="h-3 w-3 text-blue-400" /></span>
                               </span>
                             )}
                             {isPending && (
@@ -417,8 +487,8 @@ export default function AccountDetailPage() {
                               <Paperclip size={12} className="ml-2 inline text-muted-foreground" />
                             )}
                           </div>
-                          {tx.payee && tx.payee !== tx.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{tx.payee}</p>
+                          {(tx.payee_name || tx.payee) && (tx.payee_name || tx.payee) !== tx.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">{tx.payee_name || tx.payee}</p>
                           )}
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
@@ -432,10 +502,15 @@ export default function AccountDetailPage() {
                           )}
                         </td>
                         <td className={`px-3 sm:px-4 py-3 text-right text-xs sm:text-sm font-semibold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
-                          {mask(`${tx.type === 'credit' ? '+' : '-'}${formatCurrency(Math.abs(Number(tx.amount)), currency, locale)}`)}
+                          {mask(`${tx.type === 'credit' ? '+' : '-'}${formatCurrency(Math.abs(Number(tx.amount)), tx.currency, locale)}`)}
+                          {tx.currency !== userCurrency && tx.amount_primary != null && (
+                            <span className="block text-[10px] text-muted-foreground tabular-nums">
+                              {mask(formatCurrency(Math.abs(tx.amount_primary), userCurrency, locale))}
+                            </span>
+                          )}
                         </td>
                         <td className={`px-4 py-3 text-right tabular-nums text-sm hidden sm:table-cell ${(account.type === 'credit_card' ? tx.runningBalance > 0 : tx.runningBalance < 0) ? 'text-rose-500' : 'text-muted-foreground'}`}>
-                          {mask(formatCurrency(tx.runningBalance, currency, locale))}
+                          {mask(formatCurrency(tx.runningBalance, displayCurrency, locale))}
                         </td>
                       </tr>
                     )
@@ -452,7 +527,7 @@ export default function AccountDetailPage() {
         onClose={() => { setDialogOpen(false); setEditingTx(null) }}
         transaction={editingTx}
         categories={categoriesList ?? []}
-        accounts={[]}
+        accounts={accountsList ?? []}
         onSave={(data) => {
           if (editingTx) {
             updateMutation.mutate({ id: editingTx.id, ...data })
@@ -462,6 +537,15 @@ export default function AccountDetailPage() {
         loading={updateMutation.isPending || deleteMutation.isPending}
         error={updateMutation.error ? extractApiError(updateMutation.error) : null}
         isSynced={editingTx?.source === 'sync'}
+      />
+
+      <TransferDialog
+        open={transferDialogOpen}
+        onClose={() => setTransferDialogOpen(false)}
+        accounts={accountsList ?? []}
+        onSave={(data) => transferMutation.mutate(data)}
+        loading={transferMutation.isPending}
+        defaultFromAccountId={id}
       />
     </div>
   )

@@ -1,14 +1,16 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.accounts import router as accounts_router
 from app.api.budgets import router as budgets_router
+from app.api.goals import router as goals_router
 from app.api.categories import router as categories_router
 from app.api.category_groups import router as category_groups_router
 from app.api.connections import router as connections_router
+from app.api.custom_auth import router as custom_auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.import_logs import router as import_logs_router
 from app.api.import_transactions import router as import_router
@@ -21,10 +23,15 @@ from app.api.currencies import router as currencies_router
 from app.api.export import router as export_router
 from app.api.fx_rates import router as fx_rates_router
 from app.api.attachments import router as attachments_router
+from app.api.payees import router as payees_router
 from app.api.settings import router as settings_router
 from app.api.transactions import router as transactions_router
-from app.core.auth import auth_backend, fastapi_users
+from app.api.two_factor import router as two_factor_router
+from app.api.admin import router as admin_router, check_registration_enabled
+from app.core.auth import fastapi_users
 from app.core.config import get_settings
+from app.core.rate_limit import login_rate_limit, register_rate_limit, password_reset_rate_limit
+from app.core.redis import close_redis
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 
 logger = logging.getLogger(__name__)
@@ -42,6 +49,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Startup: failed to dispatch sync task")
     yield
+    # Shutdown
+    await close_redis()
 
 
 app = FastAPI(
@@ -59,9 +68,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Auth routes
+# Auth routes — custom login/logout with 2FA support (mounted first to take precedence)
 app.include_router(
-    fastapi_users.get_auth_router(auth_backend),
+    custom_auth_router,
+    prefix="/api/auth",
+    tags=["auth"],
+    dependencies=[Depends(login_rate_limit)],
+)
+app.include_router(
+    two_factor_router,
     prefix="/api/auth",
     tags=["auth"],
 )
@@ -69,11 +84,13 @@ app.include_router(
     fastapi_users.get_register_router(UserRead, UserCreate),
     prefix="/api/auth",
     tags=["auth"],
+    dependencies=[Depends(check_registration_enabled), Depends(register_rate_limit)],
 )
 app.include_router(
     fastapi_users.get_reset_password_router(),
     prefix="/api/auth",
     tags=["auth"],
+    dependencies=[Depends(password_reset_rate_limit)],
 )
 app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
@@ -92,6 +109,7 @@ app.include_router(accounts_router)
 app.include_router(connections_router)
 app.include_router(recurring_router)
 app.include_router(budgets_router)
+app.include_router(goals_router)
 app.include_router(assets_router)
 app.include_router(dashboard_router)
 app.include_router(reports_router)
@@ -100,7 +118,9 @@ app.include_router(currencies_router)
 app.include_router(fx_rates_router)
 app.include_router(export_router)
 app.include_router(attachments_router)
+app.include_router(payees_router)
 app.include_router(settings_router)
+app.include_router(admin_router)
 
 
 @app.get("/api/health")

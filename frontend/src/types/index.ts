@@ -1,7 +1,30 @@
 export interface User {
   id: string
   email: string
+  is_active: boolean
+  is_superuser: boolean
+  is_verified: boolean
+  is_2fa_enabled: boolean
   preferences: UserPreferences
+}
+
+export interface AdminUser {
+  id: string
+  email: string
+  is_active: boolean
+  is_superuser: boolean
+  is_verified: boolean
+  preferences: UserPreferences | null
+}
+
+export interface AdminUserList {
+  items: AdminUser[]
+  total: number
+}
+
+export interface AppSetting {
+  key: string
+  value: string
 }
 
 export interface UserPreferences {
@@ -72,6 +95,9 @@ export interface AccountSummary {
   current_balance: number
   monthly_income: number
   monthly_expenses: number
+  current_balance_primary: number | null
+  monthly_income_primary: number | null
+  monthly_expenses_primary: number | null
 }
 
 export interface Transaction {
@@ -89,12 +115,34 @@ export interface Transaction {
   source: string
   status: 'posted' | 'pending'
   payee: string | null
+  payee_id: string | null
+  payee_name: string | null
   notes: string | null
   transfer_pair_id: string | null
   amount_primary: number | null
   fx_rate_used: number | null
   fx_fallback: boolean
   attachment_count?: number
+}
+
+export interface Payee {
+  id: string
+  user_id: string
+  name: string
+  type: 'merchant' | 'person' | 'company'
+  is_favorite: boolean
+  notes: string | null
+  created_at: string
+  transaction_count: number
+}
+
+export interface PayeeSummary {
+  payee: Payee
+  total_spent: number
+  total_received: number
+  transaction_count: number
+  most_common_category: Category | null
+  last_transaction_date: string | null
 }
 
 export interface RuleCondition {
@@ -260,6 +308,48 @@ export interface AssetValue {
   amount: number
   date: string
   source: string
+}
+
+export interface Goal {
+  id: string
+  user_id: string
+  name: string
+  target_amount: number
+  current_amount: number
+  currency: string
+  target_amount_primary: number | null
+  current_amount_primary: number | null
+  target_date: string | null
+  tracking_type: 'manual' | 'account' | 'asset' | 'net_worth'
+  account_id: string | null
+  asset_id: string | null
+  status: 'active' | 'completed' | 'paused' | 'archived'
+  icon: string | null
+  color: string | null
+  position: number
+  metadata_json: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+  percentage: number
+  monthly_contribution: number | null
+  on_track: 'ahead' | 'on_track' | 'behind' | 'overdue' | 'achieved' | null
+  account_name: string | null
+  asset_name: string | null
+}
+
+export interface GoalSummary {
+  id: string
+  name: string
+  target_amount: number
+  current_amount: number
+  currency: string
+  target_date: string | null
+  status: string
+  icon: string | null
+  color: string | null
+  percentage: number
+  monthly_contribution: number | null
+  on_track: string | null
 }
 
 export interface PaginatedResponse<T> {

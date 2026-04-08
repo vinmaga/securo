@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Auth
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+    access_token_expire_minutes: int = 60 * 24  # 24 hours
 
     # Pluggy
     pluggy_client_id: str = ""
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     storage_s3_access_key: str = ""
     storage_s3_secret_key: str = ""
     storage_s3_endpoint_url: str = ""  # for S3-compatible services (MinIO, DigitalOcean Spaces)
+
+    # Registration
+    registration_enabled: bool = True
 
     # Celery
     redis_url: str = "redis://localhost:6379/0"
