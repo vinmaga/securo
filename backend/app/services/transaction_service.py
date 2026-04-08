@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import select, func, or_, update
+from sqlalchemy import select, func, or_, update, case, asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -57,7 +57,8 @@ async def get_transactions(
     uncategorized: bool = False,
     txn_type: Optional[str] = None,
     skip_pagination: bool = False,
-    exclude_transfers: bool = False,
+    sort_by: str = "date",
+    sort_dir: str = "desc",
 ) -> tuple[list[Transaction], int]:
     # Base query: user's own transactions (manual or via account)
     base_query = (
@@ -114,7 +115,14 @@ async def get_transactions(
     total = await session.scalar(count_query)
 
     # Apply ordering (and pagination unless skipped)
-    query = base_query.order_by(Transaction.date.desc(), Transaction.created_at.desc())
+    _sort_columns = {
+        "date": Transaction.date,
+        "amount": func.coalesce(Transaction.amount_primary, Transaction.amount),
+        "description": Transaction.description,
+    }
+    sort_col = _sort_columns.get(sort_by, Transaction.date)
+    sort_expr = desc(sort_col) if sort_dir == "desc" else asc(sort_col)
+    query = base_query.order_by(sort_expr, Transaction.created_at.desc())
     if not skip_pagination:
         query = query.offset((page - 1) * limit).limit(limit)
 

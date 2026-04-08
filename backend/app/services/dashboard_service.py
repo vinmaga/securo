@@ -582,6 +582,8 @@ async def _daily_deltas(
             Account.is_closed == False,
             Transaction.date >= start,
             Transaction.date < end,
+            Transaction.source != "opening_balance",
+            Transaction.transfer_pair_id.is_(None),
         )
         .group_by("day", Account.currency)
     )

@@ -81,6 +81,7 @@ export default function DashboardPage() {
     return displayName ? `${base}, ${displayName}` : base
   })()
   const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [categorySortKey, setCategorySortKey] = useState<'amount_desc' | 'amount_asc' | 'name_asc' | 'mom_desc'>('amount_desc')
   const [drillDown, setDrillDown] = useState<DrillDownFilter | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -252,8 +253,13 @@ export default function DashboardPage() {
           momPct,
         }
       })
-      .sort((a, b) => b.actual - a.actual)
-  }, [spending, budgetComparison])
+      .sort((a, b) => {
+        if (categorySortKey === 'amount_asc') return a.actual - b.actual
+        if (categorySortKey === 'name_asc') return (a.category_name ?? '').localeCompare(b.category_name ?? '')
+        if (categorySortKey === 'mom_desc') return (b.momPct ?? 0) - (a.momPct ?? 0)
+        return b.actual - a.actual // amount_desc default
+      })
+  }, [spending, budgetComparison, categorySortKey])
 
   const [txPage, setTxPage] = useState(1)
   useEffect(() => setTxPage(1), [selectedMonth])
@@ -520,8 +526,23 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5" style={{ gridAutoRows: 'minmax(380px, auto)' }}>
         {/* Category Spending Bars */}
         <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col max-h-[420px]">
-          <div className="px-5 py-4 border-b border-border shrink-0">
+          <div className="px-5 py-4 border-b border-border shrink-0 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-foreground">{t('dashboard.spendingByCategory')}</p>
+            <div className="flex items-center gap-1">
+              {(['amount_desc', 'amount_asc', 'name_asc', 'mom_desc'] as const).map((key) => (
+                <button
+                  key={key}
+                  onClick={() => setCategorySortKey(key)}
+                  className={`px-2 py-1 rounded text-[11px] font-medium transition-colors ${
+                    categorySortKey === key
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  {t(`dashboard.categorySort.${key}`)}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="p-3 overflow-y-auto flex-1">
             {spendingLoading ? (

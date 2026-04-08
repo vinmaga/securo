@@ -71,6 +71,12 @@
     "recentTransactions": "Transações Recentes",
     "periodTransactions": "Transações do Período",
     "spendingByCategory": "Gastos por Categoria",
+    "categorySort": {
+      "amount_desc": "Maior",
+      "amount_asc": "Menor",
+      "name_asc": "A-Z",
+      "mom_desc": "Variação"
+    },
     "monthlyTrend": "Tendência Mensal",
     "budgetVsActual": "Orçamento vs Realizado",
     "balanceFlow": "Fluxo de Saldo",

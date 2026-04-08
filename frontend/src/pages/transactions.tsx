@@ -58,6 +58,8 @@ export default function TransactionsPage() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkCategory, setBulkCategory] = useState<string>('')
+  const [sortBy, setSortBy] = useState<'date' | 'amount' | 'description'>('date')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export default function TransactionsPage() {
   }, [page, filterAccount, filterCategory, filterPayee, filterFrom, filterTo, searchQuery])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccount, filterCategory, filterPayee, filterFrom, filterTo, searchQuery],
+    queryKey: ['transactions', page, filterAccount, filterCategory, filterFrom, filterTo, searchQuery, sortBy, sortDir],
     queryFn: () =>
       transactions.list({
         page,
@@ -88,6 +90,8 @@ export default function TransactionsPage() {
         from: filterFrom || undefined,
         to: filterTo || undefined,
         q: searchQuery || undefined,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       }),
   })
 
@@ -394,10 +398,35 @@ export default function TransactionsPage() {
                     className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                   />
                 </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2">{t('transactions.description')}</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2">
+                  <span className="inline-flex items-center gap-3">
+                    <button
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sortBy === 'date' ? 'text-foreground' : ''}`}
+                      onClick={() => { setSortBy('date'); setSortDir(sortBy === 'date' && sortDir === 'desc' ? 'asc' : 'desc') }}
+                    >
+                      {t('transactions.date')}
+                      {sortBy === 'date' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    </button>
+                    <button
+                      className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${sortBy === 'description' ? 'text-foreground' : ''}`}
+                      onClick={() => { setSortBy('description'); setSortDir(sortBy === 'description' && sortDir === 'asc' ? 'desc' : 'asc') }}
+                    >
+                      {t('transactions.description')}
+                      {sortBy === 'description' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    </button>
+                  </span>
+                </TableHead>
                 <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[180px]">{t('transactions.category')}</TableHead>
                 <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px]">{t('transactions.account')}</TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px]">{t('transactions.amount')}</TableHead>
+                <TableHead
+                  className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px] cursor-pointer select-none hover:text-foreground"
+                  onClick={() => { setSortBy('amount'); setSortDir(sortBy === 'amount' && sortDir === 'desc' ? 'asc' : 'desc') }}
+                >
+                  <span className="inline-flex items-center justify-end gap-1 w-full">
+                    {sortBy === 'amount' && <span className="text-[10px]">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                    {t('transactions.amount')}
+                  </span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
