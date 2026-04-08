@@ -12,21 +12,22 @@ from app.services.category_group_service import CATEGORY_TO_GROUP, create_defaul
 # Language-keyed translations for default categories
 # Keys are internal identifiers used to map to groups and rules
 DEFAULT_CATEGORIES_I18N = {
-    "housing":       {"en": "Housing",       "pt-BR": "Moradia",        "icon": "house",            "color": "#8B5CF6"},
-    "food":          {"en": "Food & Dining", "pt-BR": "Alimentação",    "icon": "utensils-crossed", "color": "#F59E0B"},
-    "transport":     {"en": "Transport",     "pt-BR": "Transporte",     "icon": "car",              "color": "#3B82F6"},
-    "groceries":     {"en": "Groceries",     "pt-BR": "Mercado",        "icon": "shopping-cart",    "color": "#10B981"},
-    "health":        {"en": "Health",        "pt-BR": "Saúde",          "icon": "pill",             "color": "#EF4444"},
-    "leisure":       {"en": "Leisure",       "pt-BR": "Lazer",          "icon": "gamepad-2",        "color": "#EC4899"},
-    "subscriptions": {"en": "Subscriptions", "pt-BR": "Assinaturas",    "icon": "smartphone",       "color": "#6366F1"},
-    "education":     {"en": "Education",     "pt-BR": "Educação",       "icon": "book-open",        "color": "#22C55E"},
-    "transfers":     {"en": "Transfers",     "pt-BR": "Transferências", "icon": "arrow-left-right", "color": "#64748B"},
-    "salary":        {"en": "Salary & Income",  "pt-BR": "Salário & Renda",     "icon": "banknote",         "color": "#16A34A"},
-    "shopping":      {"en": "Shopping",         "pt-BR": "Compras",             "icon": "shopping-bag",     "color": "#F97316"},
-    "donations":     {"en": "Donations",        "pt-BR": "Doações",             "icon": "heart-handshake",  "color": "#D946EF"},
-    "personal_care": {"en": "Personal Care",    "pt-BR": "Cuidados Pessoais",   "icon": "scissors",         "color": "#F472B6"},
-    "taxes":         {"en": "Taxes & Fees",     "pt-BR": "Impostos & Taxas",    "icon": "landmark",         "color": "#78716C"},
-    "other":         {"en": "Other",         "pt-BR": "Outros",         "icon": "circle-help",      "color": "#6B7280"},
+    "housing":       {"en": "Housing",              "pt-BR": "Moradia",                  "icon": "house",            "color": "#8B5CF6"},
+    "food":          {"en": "Restaurants & Delivery","pt-BR": "Restaurantes & Delivery", "icon": "utensils-crossed", "color": "#F59E0B"},
+    "transport":     {"en": "Transport",             "pt-BR": "Transporte",               "icon": "car",              "color": "#3B82F6"},
+    "groceries":     {"en": "Groceries",             "pt-BR": "Mercado",                  "icon": "shopping-cart",    "color": "#10B981"},
+    "health":        {"en": "Health & Wellness",     "pt-BR": "Saúde & Bem-estar",        "icon": "heart-pulse",      "color": "#EF4444"},
+    "leisure":       {"en": "Leisure",               "pt-BR": "Lazer",                    "icon": "gamepad-2",        "color": "#EC4899"},
+    "subscriptions": {"en": "Subscriptions",         "pt-BR": "Assinaturas",              "icon": "smartphone",       "color": "#6366F1"},
+    "education":     {"en": "Education",             "pt-BR": "Educação",                 "icon": "book-open",        "color": "#22C55E"},
+    "transfers":     {"en": "Transfers",             "pt-BR": "Transferências",           "icon": "arrow-left-right", "color": "#64748B"},
+    "salary":        {"en": "Salary & Income",       "pt-BR": "Salário & Renda",          "icon": "banknote",         "color": "#16A34A"},
+    "shopping":      {"en": "Shopping",              "pt-BR": "Compras",                  "icon": "shopping-bag",     "color": "#F97316"},
+    "taxes":         {"en": "Taxes & Duties",        "pt-BR": "Impostos & Tributos",      "icon": "landmark",         "color": "#78716C"},
+    "pets":          {"en": "Pets",                  "pt-BR": "Pets",                     "icon": "paw-print",        "color": "#A78BFA"},
+    "investments":   {"en": "Investments",           "pt-BR": "Investimentos",            "icon": "trending-up",      "color": "#059669"},
+    "travel":        {"en": "Travel",                "pt-BR": "Viagens",                  "icon": "plane",            "color": "#0EA5E9"},
+    "other":         {"en": "Other",                 "pt-BR": "Outros",                   "icon": "circle-help",      "color": "#6B7280"},
 }
 
 

@@ -32,10 +32,11 @@ CATEGORY_TO_GROUP = {
     "education": "lifestyle",
     "subscriptions": "other",
     "salary": "income",
+    "investments": "income",
     "shopping": "other",
-    "donations": "other",
-    "personal_care": "lifestyle",
     "taxes": "other",
+    "pets": "lifestyle",
+    "travel": "lifestyle",
     "transfers": "other",
     "other": "other",
 }

@@ -31,7 +31,7 @@ async def test_create_default_categories(session: AsyncSession, test_user):
 
     names = {c.name for c in categories}
     assert "Moradia" in names
-    assert "Alimentação" in names
+    assert "Restaurantes & Delivery" in names
     assert "Transporte" in names
     assert "Outros" in names
 
@@ -64,7 +64,7 @@ async def test_create_default_categories_english(session: AsyncSession, test_use
 
     names = {c.name for c in categories}
     assert "Housing" in names
-    assert "Food & Dining" in names
+    assert "Restaurants & Delivery" in names
     assert "Transport" in names
 
 
